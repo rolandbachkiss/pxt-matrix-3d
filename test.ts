@@ -66,45 +66,24 @@ basic.pause(500)
 matrix3D.setCameraDistance(200)
 
 // ---------------------------------------------------------------------------
-// Test 4: Field of view variation
-// ---------------------------------------------------------------------------
-const cube3 = matrix3D.createCube(8)
-frame = 0
-
-for (let fov = 64; fov <= 192; fov += 16) {
-    matrixCore.clear()
-    matrix3D.setFOV(fov)
-    matrix3D.setRotation(cube3, frame * 2, frame * 3, frame)
-    matrix3D.drawMesh(cube3, green)
-    matrixCore.updateDisplay()
-    basic.pause(100)
-    frame++
-}
-basic.pause(500)
-
-// Reset FOV
-matrix3D.setFOV(128)
-
-// ---------------------------------------------------------------------------
-// Test 5: Trig functions test - draw sine wave
+// Test 3: Trig functions - draw sine wave
 // ---------------------------------------------------------------------------
 matrixCore.clear()
-// Draw sine wave using sinDeg
 for (let x = 0; x < 32; x++) {
-    const angle = x * 10  // 0 to 310 degrees
-    const sinVal = matrix3D.sinDeg(angle) / 1000  // Scale back to -1..1
-    const y = 16 + Math.round(sinVal * 10)  // Center at y=16, amplitude 10
+    const angle = x * 10
+    const sinVal = matrix3D.sinDeg(angle) / 1000
+    const y = 16 + Math.round(sinVal * 10)
     matrixCore.setPixel(x, y, red)
 }
 matrixCore.updateDisplay()
 basic.pause(2000)
 
 // ---------------------------------------------------------------------------
-// Test 6: Rotation axis isolation
+// Test 4: Rotation axis isolation
 // ---------------------------------------------------------------------------
 const cube4 = matrix3D.createCube(6)
 
-// Rotate only around X axis
+// X axis rotation
 for (let angle = 0; angle < 360; angle += 15) {
     matrixCore.clear()
     matrix3D.setRotation(cube4, angle, 0, 0)
@@ -113,7 +92,7 @@ for (let angle = 0; angle < 360; angle += 15) {
     basic.pause(50)
 }
 
-// Rotate only around Y axis
+// Y axis rotation
 for (let angle = 0; angle < 360; angle += 15) {
     matrixCore.clear()
     matrix3D.setRotation(cube4, 0, angle, 0)
@@ -122,7 +101,7 @@ for (let angle = 0; angle < 360; angle += 15) {
     basic.pause(50)
 }
 
-// Rotate only around Z axis
+// Z axis rotation
 for (let angle = 0; angle < 360; angle += 15) {
     matrixCore.clear()
     matrix3D.setRotation(cube4, 0, 0, angle)
@@ -132,14 +111,13 @@ for (let angle = 0; angle < 360; angle += 15) {
 }
 
 // ---------------------------------------------------------------------------
-// Test 7: Complex compound rotation
+// Test 5: Continuous spinning cube
 // ---------------------------------------------------------------------------
 const cube5 = matrix3D.createCube(9)
 frame = 0
 
 basic.forever(function () {
     matrixCore.clear()
-    // More complex rotation pattern
     matrix3D.setRotation(cube5, frame * 1.5, frame * 2.5, frame * 0.5)
     matrix3D.drawMesh(cube5, white)
     matrixCore.updateDisplay()

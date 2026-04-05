@@ -265,8 +265,8 @@ namespace matrix3D {
             const ry3 = (rx2 * sinZ + ry * cosZ) / 1000
 
             project(rx3, ry3, rz2)
-            sx[i] = _projX
-            sy[i] = _projY
+            sx.push(_projX)
+            sy.push(_projY)
         }
 
         // Draw each edge
