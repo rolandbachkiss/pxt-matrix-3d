@@ -1,7 +1,9 @@
 // ============================================================
-// PHASE 5 — pinpoint exactly which allocation causes OOM 841
-// We test each heap allocation in isolation before calling
-// any matrix3D functions.
+// VERIFICATION TEST — Buffer-based rewrite of matrix-3d.ts
+// All number[] replaced with Buffer. Should eliminate error 841.
+//
+// LED map: left-to-right, top-to-bottom, 5 per row.
+// Smiley = all passed.
 // ============================================================
 
 let _cpIdx = 0
@@ -11,79 +13,62 @@ function cp(): void {
     basic.pause(150)
 }
 
-cp()  // CP 1: program started — static initialisers done
-// At this point SIN_TABLE (91 numbers) + all the empty [] arrays
-// in matrix3D namespace are already allocated.
+cp()  // CP 1: static init (SIN_TABLE Buffer + scratch Buffers) OK
 
-// ── CP 2: how much free heap do we have right now? ───────────────────────
-// Allocate increasing buffers until we fail — gives us a floor.
-// We use Buffer (not number[]) so we don't add to the problem.
-// Show the result as a scrolling number (KB free).
-let freeKb = 0
-for (let kb = 1; kb <= 200; kb++) {
-    // Try to allocate kb*1024 bytes as a Buffer
-    // MakeCode doesn't expose try/catch but we can probe with a small helper:
-    // just count how far we get before things break.
-    // Actually we can't safely do this — skip and just log a marker.
-    freeKb = kb
-    if (kb > 10) break   // stop after 10 iterations, just a sanity marker
-}
-basic.showNumber(999)   // marker: we reached CP 2 without crash
-basic.pause(1000)
-cp()  // CP 2
-
-// ── CP 3: initNeoPixel (allocates strip + two 768-byte buffers for Row1) ──
 matrixCore.initNeoPixel(DigitalPin.P0, MatrixLayout.Row1)
-cp()  // CP 3
+cp()  // CP 2: initNeoPixel Row1 OK
 
-// ── CP 4: allocate JUST the vertex array from createCube (24 numbers) ─────
-const verts: number[] = [
-    -10, -10, -10,
-     10, -10, -10,
-     10,  10, -10,
-    -10,  10, -10,
-    -10, -10,  10,
-     10, -10,  10,
-     10,  10,  10,
-    -10,  10,  10
-]
-cp()  // CP 4: 24-element number[] allocated after initNeoPixel
-
-// ── CP 5: allocate the edge array (24 numbers) ────────────────────────────
-const edges: number[] = [
-    0, 1,  1, 2,  2, 3,  3, 0,
-    4, 5,  5, 6,  6, 7,  7, 4,
-    0, 4,  1, 5,  2, 6,  3, 7
-]
-cp()  // CP 5: edges array allocated
-
-// ── CP 6: allocate _sx and _sy equivalents (16 numbers each) ─────────────
-const sx: number[] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-const sy: number[] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-cp()  // CP 6: projection scratch arrays allocated
-
-// ── CP 7: now call createCube (allocates its OWN copies of verts+edges) ───
+// ── CP 3: createCube — previously crashed with 841 here ──────────────────
 const cubeId = matrix3D.createCube(10)
-cp()  // CP 7: createCube survived
+cp()  // CP 3: createCube survived
 
-// ── CP 8: drawMesh with the pre-fixed code ────────────────────────────────
+// ── CP 4: drawMesh — previously crashed with 841 here ────────────────────
 matrixCore.clear()
 matrix3D.setRotation(cubeId, 0, 0, 0)
 matrix3D.drawMesh(cubeId, 0x00FFFF)
-cp()  // CP 8: drawMesh survived
+cp()  // CP 4: drawMesh survived
 
 matrixCore.updateDisplay()
-cp()  // CP 9: updateDisplay survived
+cp()  // CP 5: updateDisplay survived
 
-// ── CP 10: try allocating verts as a Buffer instead ──────────────────────
-// Buffer uses 1 byte per element — 24 bytes vs ~200 bytes for number[24]
-// This is what we'll switch to in the real fix.
-const vertsBuf = pins.createBuffer(24 * 2)  // 2 bytes per coord (int16)
-vertsBuf.setNumber(NumberFormat.Int16LE, 0,  -10)
-vertsBuf.setNumber(NumberFormat.Int16LE, 2,  -10)
-vertsBuf.setNumber(NumberFormat.Int16LE, 4,  -10)
-// ... just testing the allocation works
-cp()  // CP 10: Buffer allocation works
+// ── CP 6: 10-frame loop ───────────────────────────────────────────────────
+for (let f = 0; f < 10; f++) {
+    matrixCore.clear()
+    matrix3D.setRotation(cubeId, f * 10, f * 15, f * 5)
+    matrix3D.drawMesh(cubeId, 0x00FF00)
+    matrixCore.updateDisplay()
+}
+cp()  // CP 6: 10-frame loop survived
+
+// ── CP 7: 100-frame continuous spin ──────────────────────────────────────
+for (let f = 0; f < 100; f++) {
+    matrixCore.clear()
+    matrix3D.setRotation(cubeId, f * 2, f * 3, f)
+    matrix3D.drawMesh(cubeId, 0x0000FF)
+    matrixCore.updateDisplay()
+    basic.pause(30)
+}
+cp()  // CP 7: 100-frame spin survived
+
+// ── CP 8: Grid2x2 layout ──────────────────────────────────────────────────
+matrixCore.initNeoPixel(DigitalPin.P0, MatrixLayout.Grid2x2)
+cp()  // CP 8: Grid2x2 init survived
+
+matrixCore.clear()
+matrix3D.setRotation(cubeId, 30, 45, 15)
+matrix3D.drawMesh(cubeId, 0xFF8800)
+matrixCore.updateDisplay()
+cp()  // CP 9: Grid2x2 drawMesh+updateDisplay survived
+
+// ── CP 10: 50-frame spin on full 32×32 ───────────────────────────────────
+for (let f = 0; f < 50; f++) {
+    matrixCore.clear()
+    matrix3D.setRotation(cubeId, f * 3, f * 5, f * 2)
+    matrix3D.drawMesh(cubeId, 0xFF00FF)
+    matrixCore.updateDisplay()
+    basic.pause(30)
+}
+cp()  // CP 10: 50-frame Grid2x2 spin survived
 
 for (let i = 0; i < 15; i++) cp()  // CP 11..25
 
