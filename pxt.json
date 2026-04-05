@@ -5,9 +5,8 @@
     "license": "MIT",
     "dependencies": {
         "core": "*",
-        "neopixel": "github:microsoft/pxt-neopixel#v0.7.6",
-        "matrix-core": "github:rolandbachkiss/pxt-matrix-core#v0.1.2",
-        "matrix-draw": "github:rolandbachkiss/pxt-matrix-draw#v0.0.1"
+        "matrix-core": "github:rolandbachkiss/pxt-matrix-core#v0.2.0",
+        "matrix-draw": "github:rolandbachkiss/pxt-matrix-draw#v0.1.0"
     },
     "files": [
         "README.md",

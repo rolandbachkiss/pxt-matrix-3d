@@ -1,126 +1,100 @@
-// test.ts — comprehensive visual tests for pxt-matrix-3d
+// ============================================================
+// pxt-matrix-3d verification test
+//
+// Checkpoints are lit on the micro:bit 5×5 display left-to-right,
+// top-to-bottom (25 total). A smiley face at the end = all passed.
+//
+// Tests:
+//  CP 1  — static init (SIN_TABLE Buffer + scratch Buffers)
+//  CP 2  — initNeoPixel Row1 (16×16)
+//  CP 3  — createCube (no number[] heap spike)
+//  CP 4  — drawMesh at zero rotation
+//  CP 5  — updateDisplay
+//  CP 6  — 10-frame spin loop (Row1)
+//  CP 7  — 100-frame continuous spin (Row1)
+//  CP 8  — initNeoPixel Grid2x2 (32×32)
+//  CP 9  — drawMesh + updateDisplay on Grid2x2
+//  CP 10 — 50-frame spin on Grid2x2
+//  CP 11 — second cube (max 2 meshes simultaneously)
+//  CP 12 — both cubes spinning simultaneously
+//  CP 13..25 — padding (fill remaining LEDs)
+//  Smiley — all tests passed
+// ============================================================
 
-// ---------------------------------------------------------------------------
-// Step 1: Initialize the matrix
-// ---------------------------------------------------------------------------
-matrixCore.initNeoPixel(DigitalPin.P0, MatrixLayout.Grid2x2)
-
-const cyan = matrixCore.rgb(0, 200, 255)
-const yellow = matrixCore.rgb(255, 255, 0)
-const red = matrixCore.rgb(255, 0, 0)
-const green = matrixCore.rgb(0, 255, 0)
-const blue = matrixCore.rgb(0, 0, 255)
-const white = matrixCore.rgb(255, 255, 255)
-
-// ---------------------------------------------------------------------------
-// Test 1: Basic spinning cube
-// ---------------------------------------------------------------------------
-const cube1 = matrix3D.createCube(10)
-let frame = 0
-
-for (let i = 0; i < 100; i++) {
-    matrixCore.clear()
-    matrix3D.setRotation(cube1, frame * 2, frame * 3, frame)
-    matrix3D.drawMesh(cube1, cyan)
-    matrixCore.updateDisplay()
-    basic.pause(70)
-    frame++
-}
-basic.pause(500)
-
-// ---------------------------------------------------------------------------
-// Test 2: Multiple cubes with different sizes
-// ---------------------------------------------------------------------------
-matrixCore.clear()
-const cubeSmall = matrix3D.createCube(5)
-const cubeLarge = matrix3D.createCube(14)
-
-matrix3D.setRotation(cubeSmall, 30, 30, 0)
-matrix3D.setRotation(cubeLarge, -30, -30, 0)
-
-// Draw small cube on left
-matrix3D.drawMesh(cubeSmall, red)
-// Draw large cube on right
-matrix3D.drawMesh(cubeLarge, blue)
-matrixCore.updateDisplay()
-basic.pause(2000)
-
-// ---------------------------------------------------------------------------
-// Test 3: Camera distance variation
-// ---------------------------------------------------------------------------
-const cube2 = matrix3D.createCube(8)
-frame = 0
-
-for (let dist = 100; dist <= 300; dist += 20) {
-    matrixCore.clear()
-    matrix3D.setCameraDistance(dist)
-    matrix3D.setRotation(cube2, frame * 2, frame * 3, frame)
-    matrix3D.drawMesh(cube2, yellow)
-    matrixCore.updateDisplay()
+let _cp = 0
+function cp(): void {
+    led.plot(_cp % 5, Math.idiv(_cp, 5))
+    _cp++
     basic.pause(100)
-    frame++
 }
-basic.pause(500)
 
-// Reset camera
-matrix3D.setCameraDistance(200)
+cp()  // CP 1: static init OK
 
-// ---------------------------------------------------------------------------
-// Test 3: Trig functions - draw sine wave
-// ---------------------------------------------------------------------------
+matrixCore.initNeoPixel(DigitalPin.P0, MatrixLayout.Row1)
+cp()  // CP 2: initNeoPixel Row1 OK
+
+const cubeA = matrix3D.createCube(8)
+cp()  // CP 3: createCube — no OOM
+
 matrixCore.clear()
-for (let x = 0; x < 32; x++) {
-    const angle = x * 10
-    const sinVal = matrix3D.sinDeg(angle) / 1000
-    const y = 16 + Math.round(sinVal * 10)
-    matrixCore.setPixel(x, y, red)
-}
+matrix3D.setRotation(cubeA, 0, 0, 0)
+matrix3D.drawMesh(cubeA, 0x00FFFF)
+cp()  // CP 4: drawMesh survived
+
 matrixCore.updateDisplay()
-basic.pause(2000)
+cp()  // CP 5: updateDisplay survived
 
-// ---------------------------------------------------------------------------
-// Test 4: Rotation axis isolation
-// ---------------------------------------------------------------------------
-const cube4 = matrix3D.createCube(6)
-
-// X axis rotation
-for (let angle = 0; angle < 360; angle += 15) {
+for (let f = 0; f < 10; f++) {
     matrixCore.clear()
-    matrix3D.setRotation(cube4, angle, 0, 0)
-    matrix3D.drawMesh(cube4, red)
+    matrix3D.setRotation(cubeA, f * 10, f * 15, f * 5)
+    matrix3D.drawMesh(cubeA, 0x00FF00)
     matrixCore.updateDisplay()
-    basic.pause(50)
 }
+cp()  // CP 6: 10-frame loop OK
 
-// Y axis rotation
-for (let angle = 0; angle < 360; angle += 15) {
+for (let f = 0; f < 100; f++) {
     matrixCore.clear()
-    matrix3D.setRotation(cube4, 0, angle, 0)
-    matrix3D.drawMesh(cube4, green)
+    matrix3D.setRotation(cubeA, f * 2, f * 3, f)
+    matrix3D.drawMesh(cubeA, 0x0000FF)
     matrixCore.updateDisplay()
-    basic.pause(50)
+    basic.pause(20)
 }
+cp()  // CP 7: 100-frame spin OK
 
-// Z axis rotation
-for (let angle = 0; angle < 360; angle += 15) {
+matrixCore.initNeoPixel(DigitalPin.P0, MatrixLayout.Grid2x2)
+cp()  // CP 8: Grid2x2 reinit OK
+
+matrixCore.clear()
+matrix3D.setRotation(cubeA, 30, 45, 15)
+matrix3D.drawMesh(cubeA, 0xFF8800)
+matrixCore.updateDisplay()
+cp()  // CP 9: Grid2x2 drawMesh OK
+
+for (let f = 0; f < 50; f++) {
     matrixCore.clear()
-    matrix3D.setRotation(cube4, 0, 0, angle)
-    matrix3D.drawMesh(cube4, blue)
+    matrix3D.setRotation(cubeA, f * 3, f * 5, f * 2)
+    matrix3D.drawMesh(cubeA, 0xFF00FF)
     matrixCore.updateDisplay()
-    basic.pause(50)
+    basic.pause(20)
 }
+cp()  // CP 10: 50-frame Grid2x2 spin OK
 
-// ---------------------------------------------------------------------------
-// Test 5: Continuous spinning cube
-// ---------------------------------------------------------------------------
-const cube5 = matrix3D.createCube(9)
-frame = 0
+const cubeB = matrix3D.createCube(12)
+cp()  // CP 11: second cube created OK
 
-basic.forever(function () {
+for (let f = 0; f < 50; f++) {
     matrixCore.clear()
-    matrix3D.setRotation(cube5, frame * 1.5, frame * 2.5, frame * 0.5)
-    matrix3D.drawMesh(cube5, white)
+    matrix3D.setRotation(cubeA, f * 3, f * 5, f * 2)
+    matrix3D.drawMesh(cubeA, 0xFF0000)
+    matrix3D.setRotation(cubeB, f * 2, f * 7, f * 4)
+    matrix3D.drawMesh(cubeB, 0x00FF88)
     matrixCore.updateDisplay()
-    basic.pause(70)
-    frame++
-})
+    basic.pause(20)
+}
+cp()  // CP 12: dual cube spin OK
+
+// CP 13..25: fill remaining LEDs
+while (_cp < 25) cp()
+
+basic.pause(500)
+basic.showIcon(IconNames.Happy)
