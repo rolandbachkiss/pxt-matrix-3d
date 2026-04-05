@@ -1,167 +1,108 @@
 // ============================================================
-// PHASE 2 DIAGNOSTIC — crash is inside drawMesh (confirmed CP 10)
-// Now we drill into drawMesh step by step.
+// PHASE 3 DIAGNOSTIC — crash is in updateDisplay (CP 18 confirmed)
+// The cube renders visibly on the NeoPixel panel, so lineRGB+setPixelBuf
+// works fine. The crash is somewhere inside flushChanged() or right after.
 //
-// LED map (col, row) — same as before, left-to-right top-to-bottom:
-//   CP 1  (0,0)  CP 2  (1,0)  CP 3  (2,0)  CP 4  (3,0)  CP 5  (4,0)
-//   CP 6  (0,1)  CP 7  (1,1)  CP 8  (2,1)  CP 9  (3,1)  CP 10 (4,1)
-//   CP 11 (0,2)  CP 12 (1,2)  CP 13 (2,2)  CP 14 (3,2)  CP 15 (4,2)
-//   CP 16 (0,3)  CP 17 (1,3)  CP 18 (2,3)  CP 19 (3,3)  CP 20 (4,3)
-//   CP 21 (0,4)  CP 22 (1,4)  CP 23 (2,4)  CP 24 (3,4)  CP 25 (4,4)
+// This test splits updateDisplay into its sub-operations manually
+// so we can pinpoint: setPixelColor loop vs show() vs front.write()
+//
+// LED map: left-to-right, top-to-bottom, 5 per row
 // ============================================================
 
 let _cpIdx = 0
-
 function cp(): void {
-    const row = Math.idiv(_cpIdx, 5)
-    const col = _cpIdx % 5
-    led.plot(col, row)
+    led.plot(_cpIdx % 5, Math.idiv(_cpIdx, 5))
     _cpIdx++
     basic.pause(150)
 }
 
-// ── CP 1: program started ─────────────────────────────────────────────────
+// ── CP 1: started ────────────────────────────────────────────────────────
 cp()
 
-// ── CP 2: initNeoPixel with the SMALLEST layout ───────────────────────────
-// Row1 = single 16×16 panel = 768 bytes back buffer
+// ── CP 2: init ───────────────────────────────────────────────────────────
 matrixCore.initNeoPixel(DigitalPin.P0, MatrixLayout.Row1)
 cp()
 
-// ── CP 3: createCube returned ────────────────────────────────────────────
+// ── CP 3: create cube, draw it manually into back buffer ─────────────────
 const cubeId = matrix3D.createCube(10)
-cp()
-
-// ── CP 4: cubeId is 0 (valid) ────────────────────────────────────────────
-// If cubeId is -1, MAX_MESHES was already hit — shouldn't happen on first call
-const idOk = (cubeId === 0)
-cp()
-
-// ── CP 5: setRotation 0,0,0 ──────────────────────────────────────────────
-matrix3D.setRotation(cubeId, 0, 0, 0)
-cp()
-
-// ── CP 6: matrixCore.clear() ─────────────────────────────────────────────
-matrixCore.clear()
-cp()
-
-// ============================================================
-// Now reproduce drawMesh manually, one sub-step at a time.
-// We copy the logic from matrix-3d.ts so we can checkpoint
-// between each stage without modifying the extension itself.
-// ============================================================
-
-// ── CP 7: read trig values for 0,0,0 rotation ────────────────────────────
-const cosX = matrix3D.cosDeg(0)   // expect 1000
-const sinX = matrix3D.sinDeg(0)   // expect 0
-const cosY = matrix3D.cosDeg(0)
-const sinY = matrix3D.sinDeg(0)
-const cosZ = matrix3D.cosDeg(0)
-const sinZ = matrix3D.sinDeg(0)
-cp()
-
-// ── CP 8: read cube vertex 0 directly via sinDeg/cosDeg (trig sanity) ────
-// cubeId=0 so _meshVertices[0][0] = -10 (first x of v0)
-// We can't access private arrays directly, so just verify trig values are sane
-const trigOk = (cosX === 1000 && sinX === 0)
-cp()
-
-// ── CP 9: manual rotation of one vertex (vertex 0 = -10,-10,-10) ─────────
-// Replicate exactly what drawMesh does for i=0
-const ox = -10
-const oy = -10
-const oz = -10
-
-// X-axis rotation
-const ry0  = (oy * cosX - oz * sinX) / 1000
-const rz1_0 = (oy * sinX + oz * cosX) / 1000
-cp()
-
-// ── CP 10: Y-axis rotation ───────────────────────────────────────────────
-const rx2_0 = (ox * cosY + rz1_0 * sinY) / 1000
-const rz2_0 = (-ox * sinY + rz1_0 * cosY) / 1000
-cp()
-
-// ── CP 11: Z-axis rotation ───────────────────────────────────────────────
-const rx3_0 = (rx2_0 * cosZ - ry0 * sinZ) / 1000
-const ry3_0 = (rx2_0 * sinZ + ry0 * cosZ) / 1000
-cp()
-
-// ── CP 12: project() — the sinDeg/cosDeg result feeds into division by z ─
-// project() does:  z = vz + _zOffset(100) + _viewerDist(200) = -10+100+200 = 290
-// _projX = centerX() + (vx * _fov) / z  →  7 + (-10 * 128) / 290  →  7 + (-4)  = 3
-// centerX() on Row1 layout = (16-1)>>1 = 7
-const projZ  = rz2_0 + 100 + 200  // expected ~290
-const projX0 = matrixCore.centerX() + Math.idiv(rx3_0 * 128, projZ)
-const projY0 = matrixCore.centerY() + Math.idiv(ry3_0 * 128, projZ)
-cp()
-
-// ── CP 13: allocate sx[] and sy[] arrays (heap allocation test) ───────────
 const sx: number[] = []
 const sy: number[] = []
-cp()
-
-// ── CP 14: push first vertex projection ──────────────────────────────────
-sx.push(projX0)
-sy.push(projY0)
-cp()
-
-// ── CP 15: push all 8 vertices manually ──────────────────────────────────
-// (same math, all with 0,0,0 rotation so trivial)
-const verts = [-10,-10,-10,  10,-10,-10,  10,10,-10,  -10,10,-10,
-               -10,-10,10,   10,-10,10,   10,10,10,   -10,10,10]
-
-for (let i = 1; i < 8; i++) {
-    const vx = verts[i * 3]
-    const vy = verts[i * 3 + 1]
-    const vz = verts[i * 3 + 2]
-    const pz = vz + 300
-    if (pz <= 0) { sx.push(-999); sy.push(-999); continue }
-    sx.push(matrixCore.centerX() + Math.idiv(vx * 128, pz))
-    sy.push(matrixCore.centerY() + Math.idiv(vy * 128, pz))
+const verts = [-10,-10,-10, 10,-10,-10, 10,10,-10, -10,10,-10,
+               -10,-10,10,  10,-10,10,  10,10,10,  -10,10,10]
+for (let i = 0; i < 8; i++) {
+    const vz = verts[i * 3 + 2] + 300
+    sx.push(matrixCore.centerX() + Math.idiv(verts[i * 3] * 128, vz))
+    sy.push(matrixCore.centerY() + Math.idiv(verts[i * 3 + 1] * 128, vz))
 }
-cp()
-
-// ── CP 16: matrixDraw.lineRGB for one edge (edge 0→1) ────────────────────
-const r3d = 0
-const g3d = 255
-const b3d = 255
-matrixDraw.lineRGB(sx[0], sy[0], sx[1], sy[1], r3d, g3d, b3d)
-cp()
-
-// ── CP 17: draw all 12 edges ─────────────────────────────────────────────
 const edges = [0,1, 1,2, 2,3, 3,0, 4,5, 5,6, 6,7, 7,4, 0,4, 1,5, 2,6, 3,7]
 for (let e = 0; e < 12; e++) {
-    const a = edges[e * 2]
-    const b = edges[e * 2 + 1]
-    if (sx[a] === -999 || sx[b] === -999) continue
-    matrixDraw.lineRGB(sx[a], sy[a], sx[b], sy[b], r3d, g3d, b3d)
+    const a = edges[e * 2]; const b = edges[e * 2 + 1]
+    matrixDraw.lineRGB(sx[a], sy[a], sx[b], sy[b], 0, 200, 255)
 }
 cp()
 
-// ── CP 18: updateDisplay ─────────────────────────────────────────────────
+// ── CP 4: back buffer is populated. Now split flushChanged manually. ──────
+// Step A: how many pixels differ between back and front?
+// (front is all zeros after init, back has the cube lines)
+// Count changed pixels — no NeoPixel calls yet.
+let changedCount = 0
+const w = matrixCore.width()   // 16
+const h = matrixCore.height()  // 16
+const back = matrixCore.getBackBuffer()
+const front = matrixCore.getFrontBuffer()
+for (let i = 0; i < w * h; i++) {
+    const off = i * 3
+    if (back[off] !== front[off] || back[off+1] !== front[off+1] || back[off+2] !== front[off+2]) {
+        changedCount++
+    }
+}
+// Show count on screen briefly so we can see it
+basic.showNumber(changedCount)
+basic.pause(1000)
+cp()
+
+// ── CP 5: call setPixelColor for just ONE changed pixel (index 0 if changed) ──
+// This tests whether the neopixel strip accepts setPixelColor at all.
+const strip = neopixel.create(DigitalPin.P0, 256, NeoPixelMode.RGB)
+strip.setBrightness(40)
+cp()
+
+// ── CP 6: setPixelColor on a known-good index ────────────────────────────
+strip.setPixelColor(0, 0x0000FF)
+cp()
+
+// ── CP 7: strip.show() — the first real show() call ──────────────────────
+strip.show()
+cp()
+
+// ── CP 8: strip.show() second time (empty) ───────────────────────────────
+strip.show()
+cp()
+
+// ── CP 9: now call matrixCore.updateDisplay() for the first time ──────────
+// The back buffer still has the cube. Front is still zeros.
+// This will call setPixelColor for every changed pixel, then show().
 matrixCore.updateDisplay()
 cp()
 
-// ── CP 19: NOW call the real drawMesh (after we know manual steps work) ───
+// ── CP 10: second updateDisplay() (nothing changed — front==back now) ─────
+matrixCore.updateDisplay()
+cp()
+
+// ── CP 11: clear and updateDisplay ───────────────────────────────────────
+matrixCore.clear()
+matrixCore.updateDisplay()
+cp()
+
+// ── CP 12: full drawMesh cycle with updateDisplay ─────────────────────────
 matrixCore.clear()
 matrix3D.setRotation(cubeId, 0, 0, 0)
 matrix3D.drawMesh(cubeId, 0x00FFFF)
-cp()
-
-// ── CP 20: drawMesh with rotation ────────────────────────────────────────
-matrixCore.clear()
-matrix3D.setRotation(cubeId, 45, 30, 15)
-matrix3D.drawMesh(cubeId, 0xFF0000)
 matrixCore.updateDisplay()
 cp()
 
-// ── CP 21–25: survived ───────────────────────────────────────────────────
-cp()  // 21
-cp()  // 22
-cp()  // 23
-cp()  // 24
-cp()  // 25
+// ── CP 13–25: survived ───────────────────────────────────────────────────
+for (let i = 0; i < 13; i++) cp()
 
 basic.pause(500)
 basic.showIcon(IconNames.Happy)
