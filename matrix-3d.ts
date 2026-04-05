@@ -164,25 +164,34 @@ namespace matrix3D {
         const s = size
 
         // 8 vertices × 3 coords × 2 bytes = 48 bytes
+        // Direct Buffer writes — no intermediate number[] allocation.
         const vb = pins.createBuffer(8 * 3 * 2)
-        const vc: number[] = [
-            -s, -s, -s,   s, -s, -s,   s,  s, -s,  -s,  s, -s,
-            -s, -s,  s,   s, -s,  s,   s,  s,  s,  -s,  s,  s
-        ]
-        for (let i = 0; i < 24; i++) {
-            vb.setNumber(NumberFormat.Int16LE, i * 2, vc[i])
-        }
+        // vertex 0: -s,-s,-s
+        vb.setNumber(NumberFormat.Int16LE,  0, -s); vb.setNumber(NumberFormat.Int16LE,  2, -s); vb.setNumber(NumberFormat.Int16LE,  4, -s)
+        // vertex 1:  s,-s,-s
+        vb.setNumber(NumberFormat.Int16LE,  6,  s); vb.setNumber(NumberFormat.Int16LE,  8, -s); vb.setNumber(NumberFormat.Int16LE, 10, -s)
+        // vertex 2:  s, s,-s
+        vb.setNumber(NumberFormat.Int16LE, 12,  s); vb.setNumber(NumberFormat.Int16LE, 14,  s); vb.setNumber(NumberFormat.Int16LE, 16, -s)
+        // vertex 3: -s, s,-s
+        vb.setNumber(NumberFormat.Int16LE, 18, -s); vb.setNumber(NumberFormat.Int16LE, 20,  s); vb.setNumber(NumberFormat.Int16LE, 22, -s)
+        // vertex 4: -s,-s, s
+        vb.setNumber(NumberFormat.Int16LE, 24, -s); vb.setNumber(NumberFormat.Int16LE, 26, -s); vb.setNumber(NumberFormat.Int16LE, 28,  s)
+        // vertex 5:  s,-s, s
+        vb.setNumber(NumberFormat.Int16LE, 30,  s); vb.setNumber(NumberFormat.Int16LE, 32, -s); vb.setNumber(NumberFormat.Int16LE, 34,  s)
+        // vertex 6:  s, s, s
+        vb.setNumber(NumberFormat.Int16LE, 36,  s); vb.setNumber(NumberFormat.Int16LE, 38,  s); vb.setNumber(NumberFormat.Int16LE, 40,  s)
+        // vertex 7: -s, s, s
+        vb.setNumber(NumberFormat.Int16LE, 42, -s); vb.setNumber(NumberFormat.Int16LE, 44,  s); vb.setNumber(NumberFormat.Int16LE, 46,  s)
 
         // 12 edges × 2 indices × 1 byte = 24 bytes
+        // Direct byte writes — no intermediate number[] allocation.
         const eb = pins.createBuffer(12 * 2)
-        const ec: number[] = [
-            0, 1,  1, 2,  2, 3,  3, 0,
-            4, 5,  5, 6,  6, 7,  7, 4,
-            0, 4,  1, 5,  2, 6,  3, 7
-        ]
-        for (let i = 0; i < 24; i++) {
-            eb[i] = ec[i]
-        }
+        // Front face
+        eb[0]=0;  eb[1]=1;  eb[2]=1;  eb[3]=2;  eb[4]=2;  eb[5]=3;  eb[6]=3;  eb[7]=0
+        // Back face
+        eb[8]=4;  eb[9]=5;  eb[10]=5; eb[11]=6; eb[12]=6; eb[13]=7; eb[14]=7; eb[15]=4
+        // Connecting edges
+        eb[16]=0; eb[17]=4; eb[18]=1; eb[19]=5; eb[20]=2; eb[21]=6; eb[22]=3; eb[23]=7
 
         const id = _meshCount
         _meshVerts[id] = vb
