@@ -133,6 +133,15 @@ namespace matrix3D {
     let _meshCount = 0
 
     // -----------------------------------------------------------------------
+    // Pre-allocated projection scratch buffers — eliminates per-frame heap
+    // allocation that caused error 841 (OOM) on the first drawMesh call.
+    // Sized for MAX_VERTS = 16 (a cube uses 8).
+    // -----------------------------------------------------------------------
+    const MAX_VERTS = 16
+    const _sx: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    const _sy: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+    // -----------------------------------------------------------------------
     // Mesh creation
     // -----------------------------------------------------------------------
 
@@ -235,48 +244,40 @@ namespace matrix3D {
         const g = (c >> 8) & 0xff
         const b = c & 0xff
 
-        const numVerts = verts.length / 3
+        const numVerts = Math.min(verts.length / 3, MAX_VERTS)
 
-        // Build array of projected 2D screen positions
-        const sx: number[] = []
-        const sy: number[] = []
-
+        // Project all vertices into pre-allocated scratch buffers (_sx, _sy).
+        // No heap allocation — eliminates error 841 (OOM) on first drawMesh call.
         for (let i = 0; i < numVerts; i++) {
             const ox = verts[i * 3]
             const oy = verts[i * 3 + 1]
             const oz = verts[i * 3 + 2]
 
             // --- Rotate around X axis ---
-            // y' = (y * cosX - z * sinX) / 1000
-            // z' = (y * sinX + z * cosX) / 1000
             const ry = (oy * cosX - oz * sinX) / 1000
             const rz1 = (oy * sinX + oz * cosX) / 1000
 
             // --- Rotate around Y axis ---
-            // x'' = (x * cosY + z' * sinY) / 1000
-            // z'' = (-x * sinY + z' * cosY) / 1000
             const rx2 = (ox * cosY + rz1 * sinY) / 1000
             const rz2 = (-ox * sinY + rz1 * cosY) / 1000
 
             // --- Rotate around Z axis ---
-            // x''' = (x'' * cosZ - y' * sinZ) / 1000
-            // y''' = (x'' * sinZ + y' * cosZ) / 1000
             const rx3 = (rx2 * cosZ - ry * sinZ) / 1000
             const ry3 = (rx2 * sinZ + ry * cosZ) / 1000
 
             project(rx3, ry3, rz2)
-            sx.push(_projX)
-            sy.push(_projY)
+            _sx[i] = _projX
+            _sy[i] = _projY
         }
 
-        // Draw each edge
+        // Draw each edge using pre-allocated _sx/_sy
         const numEdges = edges.length / 2
         for (let e = 0; e < numEdges; e++) {
             const a = edges[e * 2]
             const b = edges[e * 2 + 1]
-            // Skip edges whose endpoints projected off-screen
-            if (sx[a] === -999 || sx[b] === -999) continue
-            matrixDraw.lineRGB(sx[a], sy[a], sx[b], sy[b], r, g, b)
+            // Skip edges whose endpoints projected behind the camera
+            if (_sx[a] === -999 || _sx[b] === -999) continue
+            matrixDraw.lineRGB(_sx[a], _sy[a], _sx[b], _sy[b], r, g, b)
         }
     }
 
