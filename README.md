@@ -1,106 +1,28 @@
 # pxt-matrix-3d
 
-MakeCode micro:bit extension for integer 3D math, perspective projection, and wireframe mesh rendering on NeoPixel matrix panels.
+Integer 3D math, perspective projection, and wireframe mesh rendering for NeoPixel matrix panels.
+
+Depends on [pxt-matrix-core](https://github.com/rolandbachkiss/pxt-matrix-core) and [pxt-matrix-draw](https://github.com/rolandbachkiss/pxt-matrix-draw).
 
 ## Overview
 
-`pxt-matrix-3d` provides a complete pipeline for rendering 3D wireframe objects on micro:bit NeoPixel matrix displays. Every calculation uses **integer arithmetic** — no floating-point — making it fast and reliable on micro:bit V2 hardware.
+- **Integer trigonometry** — sin/cos lookup table (×1000 scaled), no floating-point
+- **Wireframe meshes** — up to 4 simultaneous meshes, all data in `Buffer` (no `number[]`)
+- **Perspective projection** — tunable camera distance and field-of-view
+- **Rotation** — X → Y → Z Euler angle rotation, set per mesh
 
-## Integer Trigonometry
+All arithmetic uses integer math (×1000 scaled intermediates) for performance on micro:bit V2.
 
-All trigonometric values are scaled by **×1000** and stored as plain integers. A pre-computed lookup table covers sin(0°)–sin(90°) at 1° resolution. All other quadrants are derived by symmetry:
-
-| Range       | Formula                    |
-|-------------|----------------------------|
-| 0°–90°      | `SIN_TABLE[deg]`           |
-| 91°–180°    | `SIN_TABLE[180 - deg]`     |
-| 181°–270°   | `-SIN_TABLE[deg - 180]`    |
-| 271°–359°   | `-SIN_TABLE[360 - deg]`    |
-
-`cos(deg)` is computed as `sin(deg + 90)`, reusing the same table.
-
-Public block functions `sinDeg(deg)` and `cosDeg(deg)` (group **Advanced**) expose these values to the block editor.
-
-## Mesh Creation
-
-Use `createCube(size)` (group **Meshes**) to create a wireframe cube with vertices at ±`size` on each axis. Up to 4 meshes can exist simultaneously. The function returns a **mesh ID** used by all other mesh operations.
-
-### Cube vertex layout
-
-```
-v0: (-s, -s, -s)    v1: ( s, -s, -s)
-v2: ( s,  s, -s)    v3: (-s,  s, -s)
-v4: (-s, -s,  s)    v5: ( s, -s,  s)
-v6: ( s,  s,  s)    v7: (-s,  s,  s)
-```
-
-12 edges connect these vertices: 4 for the front face, 4 for the back face, and 4 connecting edges.
-
-## Rotation
-
-`setRotation(id, ax, ay, az)` sets the rotation angles (in degrees) for a mesh. Rotation is applied in **X → Y → Z** order each time the mesh is drawn.
-
-### Integer rotation formulas (×1000 scaled intermediates)
-
-**Rotate around X:**
-```
-y' = (y × cos(ax) − z × sin(ax)) / 1000
-z' = (y × sin(ax) + z × cos(ax)) / 1000
-```
-
-**Rotate around Y:**
-```
-x'' = (x × cos(ay) + z' × sin(ay)) / 1000
-z'' = (−x × sin(ay) + z' × cos(ay)) / 1000
-```
-
-**Rotate around Z:**
-```
-x''' = (x'' × cos(az) − y' × sin(az)) / 1000
-y''' = (x'' × sin(az) + y' × cos(az)) / 1000
-```
-
-Division by 1000 after each axis keeps all values in a manageable integer range without overflow on 32-bit hardware.
-
-## Perspective Projection
-
-After rotation, each vertex is projected from 3D to 2D screen coordinates:
-
-```
-z_effective = vz + zOffset + viewerDistance
-screenX = centerX + (vx × fov) / z_effective
-screenY = centerY + (vy × fov) / z_effective
-```
-
-Parameters are tunable via blocks:
-
-| Block | Default | Description |
-|---|---|---|
-| `setCameraDistance(d)` | 200 | Viewer distance (larger = less perspective distortion) |
-| `setFOV(f)` | 128 | Field-of-view scale (larger = more zoom) |
-
-`centerX()` and `centerY()` come from `matrixCore`, automatically matching the connected panel size.
-
-## Drawing
-
-`drawMesh(id, color)` performs the full rotate → project → draw pipeline each frame. It calls `matrixDraw.lineRGB` for every visible edge, using the RGB components extracted from the passed colour value.
-
-## Advanced Blocks
-
-| Block | Description |
-|---|---|
-| `sinDeg(deg)` | sin × 1000 |
-| `cosDeg(deg)` | cos × 1000 |
-| `projectPoint(x, y, z, sx, sy)` | Project a single 3D point; read result with `lastProjX()` / `lastProjY()` |
-| `lastProjX()` | Screen X from last projection |
-| `lastProjY()` | Screen Y from last projection |
+---
 
 ## Quick Start
 
 ```typescript
 matrixCore.initNeoPixel(DigitalPin.P0, MatrixLayout.Grid2x2)
+
 const cubeId = matrix3D.createCube(10)
 let frame = 0
+
 basic.forever(function () {
     matrixCore.clear()
     matrix3D.setRotation(cubeId, frame * 2, frame * 3, frame)
@@ -111,11 +33,75 @@ basic.forever(function () {
 })
 ```
 
+---
+
+## API Reference
+
+### Meshes
+
+| Block | Description |
+|-------|-------------|
+| `create cube mesh size size` | Create a wireframe cube (returns mesh ID) |
+| `set mesh id rotation x ax y ay z az` | Set rotation angles in degrees |
+| `draw mesh id color c` | Rotate → project → draw all edges |
+
+### Camera
+
+| Block | Description |
+|-------|-------------|
+| `set camera distance d` | Viewer distance (default 200, larger = less distortion) |
+| `set field of view f` | FOV scale factor (default 128, larger = more zoom) |
+
+### Trig (Advanced)
+
+| Block | Description |
+|-------|-------------|
+| `sin of deg degrees ×1000` | sin(deg) × 1000, integer result |
+| `cos of deg degrees ×1000` | cos(deg) × 1000, integer result |
+| `project 3D point x x y y z z` | Project a single 3D point to 2D |
+| `last projected X` | Screen X from last projection |
+| `last projected Y` | Screen Y from last projection |
+
+---
+
+## Cube Vertex Layout
+
+```
+v0: (-s, -s, -s)    v1: ( s, -s, -s)
+v2: ( s,  s, -s)    v3: (-s,  s, -s)
+v4: (-s, -s,  s)    v5: ( s, -s,  s)
+v6: ( s,  s,  s)    v7: (-s,  s,  s)
+```
+
+12 edges: 4 front face, 4 back face, 4 connecting edges.
+
+---
+
+## Rotation Order
+
+Rotation is applied in **X → Y → Z** order each time `drawMesh()` is called. The `setRotation()` block sets the angles; they are applied during the draw call, not stored as a transform matrix.
+
+## Perspective Projection
+
+```
+z_effective = vz + zOffset + viewerDistance
+screenX = centerX + (vx × fov) / z_effective
+screenY = centerY + (vy × fov) / z_effective
+```
+
+---
+
+## Memory Strategy
+
+Every data array is a `Buffer` (raw bytes), not `number[]` (boxed values). This cuts per-element cost from ~12 bytes to 2 bytes and avoids OOM errors on the micro:bit heap. Grand total for all mesh data: ~160 bytes vs ~1500 bytes with `number[]`.
+
+---
+
 ## Dependencies
 
-- [`pxt-matrix-core`](https://github.com/rolandbachkiss/pxt-matrix-core) — `width()`, `height()`, `centerX()`, `centerY()`
-- [`pxt-matrix-draw`](https://github.com/rolandbachkiss/pxt-matrix-draw) — `lineRGB(x0, y0, x1, y1, r, g, b)`
+- [pxt-matrix-core](https://github.com/rolandbachkiss/pxt-matrix-core) — centerX(), centerY()
+- [pxt-matrix-draw](https://github.com/rolandbachkiss/pxt-matrix-draw) — lineRGB()
 
 ## License
 
-MIT
+MIT © Roland Bach Kiss
