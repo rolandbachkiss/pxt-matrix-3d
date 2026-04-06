@@ -5,8 +5,8 @@
     "license": "MIT",
     "dependencies": {
         "core": "*",
-        "matrix-core": "github:rolandbachkiss/pxt-matrix-core#v0.2.0",
-        "matrix-draw": "github:rolandbachkiss/pxt-matrix-draw#v0.1.0"
+        "matrix-core": "github:rolandbachkiss/pxt-matrix-core#v0.2.1",
+        "matrix-draw": "github:rolandbachkiss/pxt-matrix-draw#v0.1.1"
     },
     "files": [
         "README.md",
